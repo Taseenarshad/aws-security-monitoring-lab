@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+.aws/
+credentials
+*.log
