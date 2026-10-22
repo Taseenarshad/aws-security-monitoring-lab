@@ -129,21 +129,66 @@ Phase 3 was implemented with explicit user approval and verified on October 22, 
 - CloudTrail Insights: not enabled (`HasInsightSelectors=false`).
 - No multi-Region logging, optional S3 prefix, KMS key, or SNS topic configured on the trail.
 - Existing Phase 2 bucket and IAM policies were unchanged during Phase 3.
-- **No Phase 4 resources have been created yet.** Verification returned no metric filters for the lab log group, no CloudWatch alarms, and no SNS topics in us-east-2. No KMS keys or other later-phase resources were created by Phase 3.
+- **At completion of Phase 3, no Phase 4 resources had been created.** That verification returned no metric filters for the lab log group, no CloudWatch alarms, and no SNS topics in us-east-2. No KMS keys or other later-phase resources were created by Phase 3. Phase 4 was subsequently completed as recorded below.
 - Further AWS changes require separate explicit user approval.
+
+## Phase 4 implementation results — complete and verified
+
+Phase 4 was implemented with explicit user approval and verified on October 22, 2026. All resources are in **us-east-2 (Ohio)** and use the existing `/aws/cloudtrail/security-monitoring-lab` log group. This section records the completed verification; this documentation update made no AWS API calls or AWS resource changes.
+
+### Created filters, custom metrics, and alarms
+
+Each row represents one metric filter, its generated custom metric in namespace `SecurityMonitoringLab`, and one CloudWatch alarm. The filter and alarm share the same name.
+
+| Metric filter and alarm name | Custom metric name | Alarm threshold | Evaluation | Verified alarm state |
+| --- | --- | --- | --- | --- |
+| `SecurityMonitoringLab-UnauthorizedAPICalls` | `UnauthorizedAPICalls` | `Sum >= 3` | One 300-second period; 1 of 1 datapoints | `OK` |
+| `SecurityMonitoringLab-CloudTrailChanges` | `CloudTrailChanges` | `Sum >= 1` | One 300-second period; 1 of 1 datapoints | `OK` |
+| `SecurityMonitoringLab-SecurityGroupChanges` | `SecurityGroupChanges` | `Sum >= 1` | One 300-second period; 1 of 1 datapoints | `OK` |
+
+All three alarms use `ComparisonOperator=GreaterThanOrEqualToThreshold`, `Statistic=Sum`, `Period=300`, `EvaluationPeriods=1`, `DatapointsToAlarm=1`, and `TreatMissingData=notBreaching`.
+
+Each filter publishes `metricValue=1`, `defaultValue=0`, and `unit=Count`, with **no dimensions**. Default zero applies when logs arrive without matches; no ingestion can still mean missing data. An `OK` alarm is not proof of logging pipeline health.
+
+### Exact metric filter patterns
+
+**Authorization failures** — matches Ohio API authorization errors; isolated mistakes and managed-policy restrictions can also match.
+
+```text
+{ ($.awsRegion = "us-east-2") && (($.errorCode = "*UnauthorizedOperation") || ($.errorCode = "AccessDenied*")) }
+```
+
+**CloudTrail configuration changes** — matches successful changes that could alter audit visibility; authorized administration also matches.
+
+```text
+{ ($.awsRegion = "us-east-2") && ($.eventSource = "cloudtrail.amazonaws.com") && (($.eventName = "StopLogging") || ($.eventName = "DeleteTrail") || ($.eventName = "UpdateTrail") || ($.eventName = "PutEventSelectors") || ($.eventName = "PutInsightSelectors")) && ($.errorCode NOT EXISTS) }
+```
+
+**Security-group rule changes** — matches successful ingress and egress rule changes, including legitimate changes that tighten access.
+
+```text
+{ ($.awsRegion = "us-east-2") && ($.eventSource = "ec2.amazonaws.com") && (($.eventName = "AuthorizeSecurityGroupIngress") || ($.eventName = "AuthorizeSecurityGroupEgress") || ($.eventName = "RevokeSecurityGroupIngress") || ($.eventName = "RevokeSecurityGroupEgress") || ($.eventName = "ModifySecurityGroupRules")) && ($.errorCode NOT EXISTS) }
+```
+
+### Verification results and limits
+
+- All **three metric filters and three alarms** were read back and their configurations matched the approved plan, including the exact patterns, metric transformations, thresholds, evaluation settings, and action settings.
+- The patterns had been validated with positive and negative sample events using the read-only `TestMetricFilter` API during planning.
+- **Metric filtering and custom metric publication are working:** `GetMetricStatistics` returned a `Sum=0`, `Unit=Count` datapoint at **2026-10-22 06:12:00 UTC** for each of the three generated metrics after log ingestion.
+- **All three alarms were in `OK` state at the final Phase 4 check.** Two alarms initially showed `INSUFFICIENT_DATA` during initialization and subsequently transitioned to `OK` without manual state changes.
+- Zero-valued datapoints verify publication, not a positive security-event match or a complete alarm-trigger test. No synthetic audit events were injected, no alarm states were forced, and no security settings were weakened for testing. Filters process newly ingested logs and do not backfill historical events.
+- **CloudTrail remains active** (`IsLogging=true`) with its Phase 3 configuration unchanged. Its status reported successful S3, CloudWatch Logs, and digest delivery, with no reported delivery errors during the Phase 4 checks.
+- **No SNS notifications, topics, subscriptions, or automated remediation have been created for this lab.** All alarms have `ActionsEnabled=false` and empty `AlarmActions`, `OKActions`, and `InsufficientDataActions` lists. The SNS topic inventory was empty.
+- No KMS keys or other Phase 5 or later resources were created during Phase 4.
+- The approved planning estimate for three custom metrics and three standard alarms was approximately **$1.20/month before allowances or credits**, plus existing log storage and ingestion costs. This is an estimate, not measured spending or a hard cap; the existing $2 monthly budget safeguard remains unchanged.
 
 ## Planned later phases
 
-These are planning placeholders, not approved implementation instructions. Confirm exact settings, detection patterns, thresholds, and recipients before each phase.
+These are planning placeholders, not approved implementation instructions. Confirm exact settings and recipients before implementation.
 
-### Phase 4: metric filters and alarms — not started
+### Phase 5: SNS notifications — not started
 
-- Agree on security-relevant event patterns and expected test activity.
-- Add CloudWatch Logs metric filters and corresponding CloudWatch alarms.
-- Review thresholds, missing-data behavior, and cost implications.
-- Validate detection with explicitly approved test activity.
-
-### SNS notifications phase
+**Phase 5 has not started.** No Phase 5 resource creation or alarm notification configuration is authorized by this documentation update. Separate explicit user approval is required before proceeding.
 
 - Agree on authorized recipients and notification configuration.
 - Prepare an SNS topic and subscriptions, with narrowly scoped publication permissions.
