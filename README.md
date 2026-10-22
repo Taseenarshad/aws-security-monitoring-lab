@@ -76,6 +76,16 @@ Filter matching and notification delivery were tested separately:
 
 Final checks confirmed active logging, successful delivery without reported errors, unchanged configurations, and all alarms in `OK`.
 
+![Three deployed CloudWatch security alarms in OK state with actions enabled](docs/evidence/02-security-alarms-healthy.png)
+
+*Deployment state at capture time; the listed state-update times correspond to the documented recoveries.*
+
+![UnauthorizedAPICalls alarm history showing the test transition, successful SNS action, and return to OK](docs/evidence/04-controlled-alarm-history.png)
+
+*Historical controlled test: notification at 06:51:38 UTC and natural recovery at 06:52:24 UTC, approximately 46 seconds later.*
+
+Additional evidence: [active CloudTrail logging](docs/evidence/01-cloudtrail-active-logging.png), [deployed authorization filter](docs/evidence/03-authorization-filter-configuration.png), and [received SNS test email](docs/evidence/05-sns-test-email-received.png). The [evidence index](docs/evidence/README.md) provides captions, privacy-review notes, and interpretation limits for all five screenshots.
+
 ## Skills Demonstrated
 
 Cloud audit logging; least-privilege service permissions; secure object storage; JSON detection patterns; metric and alarm evaluation; SNS integration; positive/negative testing; evidence interpretation; cost awareness; and Git-based technical documentation.
@@ -96,6 +106,8 @@ The planning estimate is approximately **$1.20/month** for three custom metrics 
 
 [LAB_PLAN.md](LAB_PLAN.md) contains implementation history, exact patterns, validation evidence, and limitations.
 
+[docs/evidence/README.md](docs/evidence/README.md) explains the deployment and controlled-test screenshots and their evidence limits.
+
 ## Future Improvements
 
-Proposed, not implemented: redacted screenshots, sanitized policies, an investigation runbook, reproducible deployment instructions, and corrected alarm descriptions. Further AWS changes or real-event tests require separate review.
+Proposed, not implemented: sanitized policy examples, an investigation runbook, reproducible deployment instructions, and corrected alarm descriptions. Further AWS changes or real-event tests require separate review.
