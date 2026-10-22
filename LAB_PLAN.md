@@ -178,22 +178,53 @@ Each filter publishes `metricValue=1`, `defaultValue=0`, and `unit=Count`, with 
 - **All three alarms were in `OK` state at the final Phase 4 check.** Two alarms initially showed `INSUFFICIENT_DATA` during initialization and subsequently transitioned to `OK` without manual state changes.
 - Zero-valued datapoints verify publication, not a positive security-event match or a complete alarm-trigger test. No synthetic audit events were injected, no alarm states were forced, and no security settings were weakened for testing. Filters process newly ingested logs and do not backfill historical events.
 - **CloudTrail remains active** (`IsLogging=true`) with its Phase 3 configuration unchanged. Its status reported successful S3, CloudWatch Logs, and digest delivery, with no reported delivery errors during the Phase 4 checks.
-- **No SNS notifications, topics, subscriptions, or automated remediation have been created for this lab.** All alarms have `ActionsEnabled=false` and empty `AlarmActions`, `OKActions`, and `InsufficientDataActions` lists. The SNS topic inventory was empty.
+- **At completion of Phase 4, no SNS notifications, topics, subscriptions, or automated remediation had been created for this lab.** At that check, all alarms had `ActionsEnabled=false` and empty `AlarmActions`, `OKActions`, and `InsufficientDataActions` lists, and the SNS topic inventory was empty. Phase 5 subsequently enabled notifications as recorded below.
 - No KMS keys or other Phase 5 or later resources were created during Phase 4.
 - The approved planning estimate for three custom metrics and three standard alarms was approximately **$1.20/month before allowances or credits**, plus existing log storage and ingestion costs. This is an estimate, not measured spending or a hard cap; the existing $2 monthly budget safeguard remains unchanged.
 
+## Phase 5 implementation results — complete and verified
+
+Phase 5 was implemented with explicit user approval. The email subscription was verified as confirmed before modifying any CloudWatch alarms, and the subscription status and all three alarm configurations were verified again afterward. This section records those completed checks; this local documentation update made no AWS API calls or AWS resource changes.
+
+### SNS topic and confirmed subscription
+
+- Topic name: `SecurityMonitoringLab-Alerts`.
+- Topic ARN: `arn:aws:sns:us-east-2:374786579110:SecurityMonitoringLab-Alerts`.
+- Region: **us-east-2 (Ohio)**.
+- Topic type: **Standard**.
+- One email subscription: `taseenarshad1991@gmail.com`, using protocol `email`.
+- The user confirmed the subscription through the AWS SNS confirmation email. `GetSubscriptionAttributes` verified `PendingConfirmation=false` both before and after the alarm updates.
+- The topic policy permits `cloudwatch.amazonaws.com` to publish only for project `374786579110` and the exact three lab alarm ARNs. It also denies insecure client transport for the configured topic-level actions.
+- No KMS encryption was configured on the SNS topic, as approved for this budget-focused lab. No new IAM roles or KMS keys were created.
+
+### Enabled alarm notifications
+
+Each existing alarm has `ActionsEnabled=true` and exactly one `AlarmActions` entry: the `SecurityMonitoringLab-Alerts` topic ARN above.
+
+| Existing alarm | ALARM notification destination | State at final Phase 5 verification |
+| --- | --- | --- |
+| `SecurityMonitoringLab-UnauthorizedAPICalls` | `SecurityMonitoringLab-Alerts` | `OK` |
+| `SecurityMonitoringLab-CloudTrailChanges` | `SecurityMonitoringLab-Alerts` | `OK` |
+| `SecurityMonitoringLab-SecurityGroupChanges` | `SecurityMonitoringLab-Alerts` | `OK` |
+
+- Read-back comparison confirmed that **all existing thresholds, metrics, dimensions, statistics, units, periods, evaluation settings, comparison operators, and missing-data settings were preserved** for all three alarms.
+- **`OKActions=[]` and `InsufficientDataActions=[]` remain empty** on all three alarms.
+- Notifications are configured for transitions into `ALARM`; they are not periodic reminders while an alarm remains in `ALARM`.
+- **No automated remediation was configured.** The only enabled alarm action is publishing to the existing SNS topic.
+- No additional topics, subscriptions, alarms, metric filters, IAM roles, KMS keys, or other resources were created while enabling the alarm actions.
+- All alarm update and verification calls succeeded; no errors were reported during that completion step.
+
+### Verification limits and phase boundary
+
+- **No test notification has been sent yet.** Subscription confirmation and notification configuration are verified, but SNS-to-inbox test delivery and a complete detection-to-email test have not been performed.
+- No alarm states were forced and no synthetic security events were generated during Phase 5.
+- **Phase 6 has not started.** Its scope and any testing or resource changes require separate explicit user approval before proceeding.
+
 ## Planned later phases
 
-These are planning placeholders, not approved implementation instructions. Confirm exact settings and recipients before implementation.
+### Phase 6 — not started
 
-### Phase 5: SNS notifications — not started
-
-**Phase 5 has not started.** No Phase 5 resource creation or alarm notification configuration is authorized by this documentation update. Separate explicit user approval is required before proceeding.
-
-- Agree on authorized recipients and notification configuration.
-- Prepare an SNS topic and subscriptions, with narrowly scoped publication permissions.
-- Connect approved alarms to the topic.
-- Verify subscription confirmation and notification delivery using an approved test.
+The Phase 6 implementation or test plan has not yet been defined or approved. This documentation update authorizes no testing, notifications, AWS resource changes, or later-phase work.
 
 ## Approval boundary
 
