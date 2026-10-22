@@ -94,20 +94,49 @@ arn:aws:logs:us-east-2:374786579110:log-group:/aws/cloudtrail/security-monitorin
 
 Phase 2 can validate resource configuration and policy scope, but cannot prove CloudTrail delivery end to end before the later trail phase.
 
+## Phase 3 implementation results — complete and verified
+
+Phase 3 was implemented with explicit user approval and verified on October 22, 2026. This section records those verification results; updating this document did not make any AWS API calls or change AWS resources.
+
+### Trail and event configuration
+
+- Trail name: `security-monitoring-lab`.
+- Trail ARN: `arn:aws:cloudtrail:us-east-2:374786579110:trail/security-monitoring-lab`.
+- Region: **us-east-2 (Ohio)**.
+- Single-Region trail: `IsMultiRegionTrail=false`.
+- Management events: `IncludeManagementEvents=true`, `ReadWriteType=All` (read and write), with no management event-source exclusions.
+- Log file integrity validation: **enabled**, confirmed by `LogFileValidationEnabled=true`. Digest generation is enabled; cryptographic validation of a delivered digest chain was not performed during this verification.
+- Logging: **active**, confirmed by `IsLogging=true`; started at **2026-10-22 05:57:58 UTC**.
+
+### Delivery verification
+
+- **CloudWatch Logs delivery confirmed** by actual management events in `/aws/cloudtrail/security-monitoring-lab`, including `StartLogging` and `GetTrailStatus`.
+- CloudTrail used the existing `SecurityMonitoringLab-CloudTrailLogsRole` and automatically created streams matching `374786579110_CloudTrail_us-east-2*`.
+- The first observed successful CloudWatch delivery was at **06:00:06 UTC**; another delivery was reported at **06:02:17 UTC**. The existing log group retains events for **7 days**.
+- **S3 delivery confirmed** to the existing bucket `security-monitoring-lab-374786579110-us-east-2`, with no optional S3 prefix.
+- CloudTrail reported successful S3 delivery at **06:02:47 UTC**. A nonempty compressed audit file was present under `AWSLogs/374786579110/CloudTrail/us-east-2/2026/10/22/` with a size of **5,613 bytes** and last-modified time **06:02:48 UTC**.
+- An object metadata read confirmed **SSE-S3 encryption** (`ServerSideEncryption=AES256`) on that delivered audit file.
+- The delivered object also carried an expiration header referencing `ExpireLabAuditLogsAfter30Days`, confirming application of the existing **30-day lifecycle rule**. Expiration is asynchronous and is not an exact deletion deadline.
+- Initial S3 delivery took approximately **five minutes** after logging started. Zero-byte folder markers observed earlier were not treated as proof of audit-log delivery.
+- **No delivery errors were reported** during verification. Both S3 and CloudWatch delivery were confirmed before Phase 3 was declared complete.
+
+### Excluded features and phase boundary
+
+- Global service events: disabled (`IncludeGlobalServiceEvents=false`). The Ohio-only trail does not provide global IAM activity or complete console sign-in coverage.
+- Organization trail: disabled (`IsOrganizationTrail=false`).
+- Data events: excluded (`DataResources=[]`).
+- Network activity events: not configured.
+- CloudTrail Insights: not enabled (`HasInsightSelectors=false`).
+- No multi-Region logging, optional S3 prefix, KMS key, or SNS topic configured on the trail.
+- Existing Phase 2 bucket and IAM policies were unchanged during Phase 3.
+- **No Phase 4 resources have been created yet.** Verification returned no metric filters for the lab log group, no CloudWatch alarms, and no SNS topics in us-east-2. No KMS keys or other later-phase resources were created by Phase 3.
+- Further AWS changes require separate explicit user approval.
+
 ## Planned later phases
 
 These are planning placeholders, not approved implementation instructions. Confirm exact settings, detection patterns, thresholds, and recipients before each phase.
 
-### CloudTrail phase
-
-- Create a single-Region trail in us-east-2 using the agreed name.
-- Configure the selected management-event scope and log file validation.
-- Connect the prepared S3 bucket, CloudWatch log group, and delivery role.
-- Start logging only after approval.
-- Verify trail status, delivery health, and arrival of audit events in both destinations.
-- Do not add cross-Region logging, organization trails, or paid data-event selectors without a separate scope review and approval.
-
-### Metric filters and alarms phase
+### Phase 4: metric filters and alarms — not started
 
 - Agree on security-relevant event patterns and expected test activity.
 - Add CloudWatch Logs metric filters and corresponding CloudWatch alarms.
