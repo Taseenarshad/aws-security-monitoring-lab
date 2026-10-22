@@ -216,15 +216,86 @@ Each existing alarm has `ActionsEnabled=true` and exactly one `AlarmActions` ent
 
 ### Verification limits and phase boundary
 
-- **No test notification has been sent yet.** Subscription confirmation and notification configuration are verified, but SNS-to-inbox test delivery and a complete detection-to-email test have not been performed.
+- **At completion of Phase 5, no test notification had been sent.** Subscription confirmation and notification configuration had been verified, but SNS-to-inbox test delivery and a complete detection-to-email test had not been performed. Phase 6 subsequently validated notification delivery as recorded below; a complete real-event detection-to-email test remains outside the validated scope.
 - No alarm states were forced and no synthetic security events were generated during Phase 5.
-- **Phase 6 has not started.** Its scope and any testing or resource changes require separate explicit user approval before proceeding.
+- **At completion of Phase 5, Phase 6 had not started.** Phase 6 was subsequently approved, completed, and verified as recorded below.
 
-## Planned later phases
+## Phase 6 validation results — completed and verified
 
-### Phase 6 — not started
+Phase 6 was performed with explicit user approval in **us-east-2 (Ohio)** on **October 22, 2026**. Its purpose was to validate the existing metric filter matching logic and the alarm-to-SNS-to-email notification paths through controlled tests, then verify natural alarm recovery and preservation of the environment. It created no infrastructure and changed no detection or notification configuration.
 
-The Phase 6 implementation or test plan has not yet been defined or approved. This documentation update authorizes no testing, notifications, AWS resource changes, or later-phase work.
+### Step 1: baseline verification
+
+- Project identity and Region matched the existing lab: `374786579110`, us-east-2.
+- All three alarms were `OK`, with the approved thresholds, metrics, five-minute periods, evaluation settings, and `TreatMissingData=notBreaching`.
+- All three alarms had actions enabled, with only `SecurityMonitoringLab-Alerts` in `AlarmActions` and empty `OKActions` and `InsufficientDataActions`.
+- All three metric filters matched the approved patterns and transformations. Recent zero-valued datapoints were present for all three custom metrics.
+- The SNS topic policy was restricted to the three lab alarm ARNs and the project ID. Its single email subscriber was confirmed (`PendingConfirmation=false`), with no pending subscriptions reported.
+- CloudTrail was active with the approved event selection and log file validation settings, successful S3 and CloudWatch Logs delivery, and no reported delivery errors.
+- The baseline identified stale alarm descriptions saying "No notification or remediation actions" despite enabled SNS notifications. This metadata discrepancy was reported and left unchanged; the user then explicitly approved the filter tests and each subsequent alarm test.
+
+### Step 2: synthetic filter matching tests
+
+The exact patterns were read from the existing filters on `/aws/cloudtrail/security-monitoring-lab` and tested sequentially using `TestMetricFilter`. **All 12 samples passed: all six positive samples matched and all six negative samples did not match.** No unexpected result occurred.
+
+| Existing filter | Synthetic JSON case | Expected result | Actual result |
+| --- | --- | --- | --- |
+| `SecurityMonitoringLab-UnauthorizedAPICalls` | Ohio request with `errorCode=AccessDeniedException` | Match | Matched — pass |
+| `SecurityMonitoringLab-UnauthorizedAPICalls` | Ohio request with `errorCode=Client.UnauthorizedOperation` | Match | Matched — pass |
+| `SecurityMonitoringLab-UnauthorizedAPICalls` | Successful Ohio request with no error code | No match | Did not match — pass |
+| `SecurityMonitoringLab-UnauthorizedAPICalls` | `AccessDeniedException` request in us-east-1 | No match | Did not match — pass |
+| `SecurityMonitoringLab-CloudTrailChanges` | Successful Ohio `StopLogging` from `cloudtrail.amazonaws.com` | Match | Matched — pass |
+| `SecurityMonitoringLab-CloudTrailChanges` | Successful Ohio `PutEventSelectors` from `cloudtrail.amazonaws.com` | Match | Matched — pass |
+| `SecurityMonitoringLab-CloudTrailChanges` | Read-only Ohio `GetTrail` from `cloudtrail.amazonaws.com` | No match | Did not match — pass |
+| `SecurityMonitoringLab-CloudTrailChanges` | Ohio `UpdateTrail` with `errorCode=AccessDeniedException` | No match | Did not match — pass |
+| `SecurityMonitoringLab-SecurityGroupChanges` | Successful Ohio `AuthorizeSecurityGroupIngress` from `ec2.amazonaws.com` | Match | Matched — pass |
+| `SecurityMonitoringLab-SecurityGroupChanges` | Successful Ohio `ModifySecurityGroupRules` from `ec2.amazonaws.com` | Match | Matched — pass |
+| `SecurityMonitoringLab-SecurityGroupChanges` | Read-only Ohio `DescribeSecurityGroups` from `ec2.amazonaws.com` | No match | Did not match — pass |
+| `SecurityMonitoringLab-SecurityGroupChanges` | Ohio `RevokeSecurityGroupEgress` with `errorCode=AccessDeniedException` | No match | Did not match — pass |
+
+The us-east-1 value above existed only inside synthetic sample JSON; no test API was run outside us-east-2. **No synthetic events were ingested into the real log group, and no artificial metric datapoints were published.** The filter tests did not trigger alarms or send SNS notifications.
+
+### Step 3: controlled alarm notification tests and natural recovery
+
+Each alarm was tested individually after separate user approval. Before each test, the target and previously tested alarms were verified as `OK`, the target had only the existing SNS topic as its ALARM action, and the email subscription was confirmed.
+
+`SetAlarmState` temporarily changed only the target alarm's state to `ALARM`, with this exact reason:
+
+```text
+PHASE 6 CONTROLLED TEST - notification verification; no security incident
+```
+
+Alarm history confirmed each controlled `OK → ALARM` transition and a successful notification action to `arn:aws:sns:us-east-2:374786579110:SecurityMonitoringLab-Alerts`, with no reported action error. **All three notification tests succeeded, and the user personally confirmed receipt of the SNS email for each alarm.**
+
+All timestamps below are UTC on October 22, 2026.
+
+| Alarm | Controlled ALARM transition | Natural return to OK | Approximate recovery time | SNS action and inbox result |
+| --- | --- | --- | --- | --- |
+| `SecurityMonitoringLab-UnauthorizedAPICalls` | 06:51:38 | 06:52:24 | 46 seconds | Action succeeded; user confirmed email receipt |
+| `SecurityMonitoringLab-CloudTrailChanges` | 06:57:31 | 06:58:41 | 69 seconds | Action succeeded; user confirmed email receipt |
+| `SecurityMonitoringLab-SecurityGroupChanges` | 07:00:47 | 07:02:13 | 86 seconds | Action succeeded; user confirmed email receipt |
+
+Recovery history showed normal metric evaluation using a sum of zero below the respective thresholds (3 for UnauthorizedAPICalls and 1 for each other alarm). **No alarm was manually forced back to OK.** No thresholds, metrics, periods, filters, topic settings, or subscriptions were changed for the tests.
+
+### Step 4: final environment verification
+
+- **All three alarms were `OK`** at the final check. Alarm configuration update timestamps remained unchanged since Phase 5.
+- Existing detection settings were preserved: namespace `SecurityMonitoringLab`, the three original metric names, `Count` unit, no dimensions, `Sum` statistic, thresholds 3/1/1, `Period=300`, `EvaluationPeriods=1`, `DatapointsToAlarm=1`, `GreaterThanOrEqualToThreshold`, and `TreatMissingData=notBreaching`.
+- Existing notification settings were preserved: actions enabled, only `SecurityMonitoringLab-Alerts` in each `AlarmActions` list, and empty `OKActions` and `InsufficientDataActions`.
+- All three metric filter patterns and transformations remained unchanged: metric value 1, default value 0, unit Count, and no dimensions.
+- The single SNS email subscription remained confirmed, and the topic policy remained restricted to the three lab alarms.
+- **CloudTrail remained active**, with unchanged event selectors and integrity validation enabled. Its final status reported successful S3 delivery at **07:01:33 UTC** and CloudWatch Logs delivery at **07:02:42 UTC**, with **no reported delivery errors**.
+- **No unintended resources were created by Phase 6.** Inventory checks found only the expected lab bucket, trail, log group, role, topic, subscription, and three alarms alongside pre-existing managed roles. No KMS keys, Lambda functions, EC2 instances, CloudFormation stacks, or EventBridge rules were returned in us-east-2; the supplementary us-east-1 log-group inventory was empty.
+- **No automated remediation was created or enabled.** Alarm actions contain only SNS publishing.
+- Final verification used read-only calls. This documentation update also makes no AWS API calls or AWS resource changes.
+
+### Validation limits and unresolved documentation/metadata debt
+
+- These tests validated **filter matching and alarm-to-SNS-to-email delivery separately**. They did not prove a complete real security-event → CloudTrail → metric filter → threshold evaluation → email sequence.
+- No real unauthorized AWS API activity, real CloudTrail configuration changes, or real security-group changes were generated. Controlled alarm state changes did not create real metric breaches.
+- The trail remains **Ohio-only**, with global-service events disabled and data events excluded. It does not provide complete global IAM or console sign-in coverage, or data-event coverage.
+- **Unresolved documentation/metadata debt:** all three AWS alarm descriptions still say **"No notification or remediation actions"**, even though SNS notifications are enabled. The description text is stale; the actual notification settings are correct and were successfully tested. **The descriptions were not fixed.** Correcting them requires a separately approved AWS configuration change.
+- Phase 6 is **completed and verified**. No later phase is defined or started by this update.
 
 ## Approval boundary
 
